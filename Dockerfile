@@ -1,4 +1,4 @@
-FROM --platform=$BUILDPLATFORM golang:1.24-alpine AS builder
+FROM --platform=$BUILDPLATFORM golang:1.25-alpine AS builder
 
 LABEL app.nrtk-client-go.vendor="Digital Developments"
 LABEL app.nrtk-client-go.version="0.1"
