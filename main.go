@@ -343,6 +343,7 @@ func handleFileRequest(w http.ResponseWriter, r *http.Request) {
 
 			if os.IsNotExist(err_extension) {
 				log.Printf("Fallback File Error 404: %v", err_extension)
+				w.WriteHeader(http.StatusNotFound)
 				http.ServeFile(w, r, path.Join(viper.GetString("ContentDir"), "/404"+story_extension))
 			} else {
 				log.Printf("Serving %v on behalf of %v", file_path_extension, r.URL.Path)
@@ -350,6 +351,7 @@ func handleFileRequest(w http.ResponseWriter, r *http.Request) {
 			}
 
 		} else {
+			w.WriteHeader(http.StatusNotFound)
 			http.ServeFile(w, r, path.Join(viper.GetString("ContentDir"), "/404"))
 		}
 
