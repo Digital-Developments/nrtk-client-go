@@ -10,7 +10,9 @@ import (
 	"net/http"
 	"os"
 	"path"
+	"path/filepath"
 	"regexp"
+	"strings"
 	"time"
 
 	"github.com/spf13/viper"
@@ -327,24 +329,57 @@ func handleSyncRequest(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func isWithinBase(baseDir, candidate string) bool {
+	baseAbs, err := filepath.Abs(baseDir)
+	if err != nil {
+		return false
+	}
+	candidateAbs, err := filepath.Abs(candidate)
+	if err != nil {
+		return false
+	}
+
+	baseAbs = filepath.Clean(baseAbs)
+	candidateAbs = filepath.Clean(candidateAbs)
+
+	rel, err := filepath.Rel(baseAbs, candidateAbs)
+	if err != nil {
+		return false
+	}
+	return rel == "." || (!strings.HasPrefix(rel, ".."+string(os.PathSeparator)) && rel != "..")
+}
+
 func handleFileRequest(w http.ResponseWriter, r *http.Request) {
 
 	story_extension := storyExtension()
 	request_path := r.URL.Path[1:]
-	file_path := path.Join(viper.GetString("ContentDir"), path.Clean(request_path))
+	contentDir := viper.GetString("ContentDir")
+
+	file_path := filepath.Join(contentDir, filepath.Clean(request_path))
+	if !isWithinBase(contentDir, file_path) {
+		w.WriteHeader(http.StatusBadRequest)
+		fmt.Fprint(w, "Invalid path")
+		return
+	}
 
 	_, err := os.OpenFile(file_path, os.O_RDONLY, 0644)
 	if os.IsNotExist(err) {
 		log.Printf("Error 404: %v", err)
 		if len(story_extension) > 0 {
 
-			file_path_extension := path.Join(viper.GetString("ContentDir"), path.Clean(request_path)+story_extension)
+			file_path_extension := filepath.Join(contentDir, filepath.Clean(request_path)+story_extension)
+			if !isWithinBase(contentDir, file_path_extension) {
+				w.WriteHeader(http.StatusBadRequest)
+				fmt.Fprint(w, "Invalid path")
+				return
+			}
+
 			_, err_extension := os.OpenFile(file_path_extension, os.O_RDONLY, 0644)
 
 			if os.IsNotExist(err_extension) {
 				log.Printf("Fallback File Error 404: %v", err_extension)
 				w.WriteHeader(http.StatusNotFound)
-				http.ServeFile(w, r, path.Join(viper.GetString("ContentDir"), "/404"+story_extension))
+				http.ServeFile(w, r, filepath.Join(contentDir, "404"+story_extension))
 			} else {
 				log.Printf("Serving %v on behalf of %v", file_path_extension, r.URL.Path)
 				http.ServeFile(w, r, file_path_extension)
@@ -352,7 +387,7 @@ func handleFileRequest(w http.ResponseWriter, r *http.Request) {
 
 		} else {
 			w.WriteHeader(http.StatusNotFound)
-			http.ServeFile(w, r, path.Join(viper.GetString("ContentDir"), "/404"))
+			http.ServeFile(w, r, filepath.Join(contentDir, "404"))
 		}
 
 	} else {
